@@ -1,14 +1,3 @@
-// NEXT_PUBLIC_PAYMENT_API_BASE_URL=https://localhost:7184
-
-// import type { NextConfig } from "next";
-
-// const nextConfig: NextConfig = {
-//   /* config options here */
-// };
-
-// export default nextConfig;
-
-
 "use client";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import axios from "axios";
