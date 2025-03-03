@@ -1,101 +1,189 @@
-import Image from "next/image";
+// NEXT_PUBLIC_PAYMENT_API_BASE_URL=https://localhost:7184
 
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+// import type { NextConfig } from "next";
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+// const nextConfig: NextConfig = {
+//   /* config options here */
+// };
+
+// export default nextConfig;
+
+
+"use client";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import axios from "axios";
+
+
+interface Product {
+    name: string;
+    price: number;
+    quantity?: number;
 }
+
+const PaymentPage = () => {
+    
+    const [cart, setCart] = useState<Product[]>([]);
+    const [customerName, setCustomerName] = useState("");
+    
+    // Calculate total using useMemo to optimize performance
+    const totalAmount = useMemo(() => {
+        return cart.reduce((total, item) => total + item.price * (item.quantity || 1), 0);
+    }, [cart]);
+
+    // Load Razorpay SDK only once
+    useEffect(() => {
+        const scriptId = "razorpay-sdk";
+        if (document.getElementById(scriptId)) return;
+
+        const script = document.createElement("script");
+        script.id = scriptId;
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        script.onload = () => console.log("Razorpay SDK Loaded");
+        script.onerror = () => console.error("Failed to load Razorpay SDK");
+        document.body.appendChild(script);
+    }, []);
+
+    const addToCart = (product: Product) => {
+        setCart((prevCart) => {
+            const existingProduct = prevCart.find((item) => item.name === product.name);
+            return existingProduct
+            ? prevCart.map((item) =>
+            item.name === product.name ? { ...item, quantity: (item.quantity || 1) + 1 } : item
+            )
+            : [...prevCart, { ...product, quantity: 1 }];
+        });
+    };
+    
+    const removeFromCart = (productName: string) => {
+        setCart((prevCart) =>
+        prevCart
+        .map((item) =>
+        item.name === productName ? { ...item, quantity: (item.quantity || 1) - 1 } : item
+        )
+        .filter((item) => item.quantity && item.quantity > 0)
+        );
+    };
+    const createOrder = async () => {
+        try {
+            
+            const { data } = await axios.post("https://localhost:7184/api/payments/CreateOrder", {
+                amount: totalAmount,
+            });
+            return data;
+        } catch (error) {
+            console.error("Error creating order:", error);
+            alert("Failed to initiate payment. Please try again.");
+            return null;
+        }
+    };
+
+    const capturePayment = async (response: any) => {
+        try {
+            const verifyResponse = await axios.post("https://localhost:7184/api/payments/CapturePayment", {
+                paymentId: response.razorpay_payment_id,
+                orderId: response.razorpay_order_id,
+                signature: response.razorpay_signature,
+            });
+            alert("Payment Successful!");
+            setCart([]);
+            setCustomerName("");
+        } catch (error) {
+            console.error("Error capturing payment:", error);
+            alert("Payment verification failed. Contact support.");
+        }
+    };
+
+    const handleRazorpay = (order: any) => {
+        if (!window || !(window as any).Razorpay) {
+            alert("Razorpay SDK not loaded. Please check your internet connection.");
+            return;
+        }
+
+        const options = {
+            key: order.razorpayKey,
+            amount: order.amount * 100,
+            currency: "INR",
+            name: customerName,
+            order_id: order.orderId,
+            handler: capturePayment,
+            theme: { color: "#F37254" },
+        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+    };
+
+    const handleCheckout = async () => {
+        if (!cart.length) {
+            alert("Cart is empty. Add products before checkout.");
+            return;
+        }
+        if (!customerName.trim()) {
+            alert("Please enter your name before proceeding.");
+            return;
+        }
+
+        const order = await createOrder();
+        if (order) handleRazorpay(order);
+    };
+
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+            <h2 className="text-2xl font-bold mb-4">🛍️ Product List</h2>
+
+            <div className="grid grid-cols-2 gap-4 mb-6">
+                {[{ name: "Product A", price: 500 }, { name: "Product B", price: 700 }].map((product) => (
+                    <div key={product.name} className="p-4 bg-white shadow-lg rounded-lg w-48 flex flex-col items-center">
+                        <span className="font-semibold">{product.name}</span>
+                        <span className="text-gray-600">₹{product.price}</span>
+                        <button onClick={() => addToCart(product)} className="mt-2 px-3 py-1 bg-blue-500 text-white rounded">
+                            ➕ Add
+                        </button>
+                    </div>
+                ))}
+            </div>
+
+            <div className="p-6 bg-white shadow-lg rounded-lg w-96">
+                <h3 className="text-xl font-semibold mb-2">🛒 Your Cart</h3>
+                {cart.length > 0 ? (
+                    <ul className="mb-4">
+                        {cart.map((item, index) => (
+                            <li key={index} className="border-b p-2 flex justify-between items-center">
+                                <span>
+                                    {item.name} - ₹{item.price} x {item.quantity}
+                                </span>
+                                <div className="flex items-center">
+                                    <button onClick={() => removeFromCart(item.name)} className="px-2 py-1 bg-red-500 text-white rounded">
+                                        ➖
+                                    </button>
+                                    <button onClick={() => addToCart(item)} className="ml-2 px-2 py-1 bg-green-500 text-white rounded">
+                                        ➕
+                                    </button>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="text-gray-500">Cart is empty.</p>
+                )}
+
+                <h3 className="text-lg font-bold mb-4">Total: ₹{totalAmount}</h3>
+
+                <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Enter Your Name"
+                    className="w-full p-2 border rounded mb-4"
+                />
+
+                <button onClick={handleCheckout} className="w-full p-2 bg-blue-600 text-white rounded disabled:opacity-50" disabled={!cart.length}>
+                    Checkout & Pay
+                </button>
+            </div>
+        </div>
+    );
+};
+
+export default PaymentPage;
